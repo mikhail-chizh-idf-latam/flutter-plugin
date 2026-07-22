@@ -15,6 +15,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'core/payment_configuration.dart';
@@ -41,14 +42,22 @@ class PayMethodChannel extends PayPlatform {
   final StreamController<Map<String, dynamic>> _eventStreamController = StreamController.broadcast();
 
   PayMethodChannel() {
-    // Listen to the event channel and add events to the stream controller
-    _eventChannel.receiveBroadcastStream().listen((dynamic event) {
-      final Map<String, dynamic> eventData = jsonDecode(event as String) as Map<String, dynamic>;
-      _eventStreamController.add(eventData);
-    }, onError: (dynamic error) {
-      // Flush error to the event stream controller
-      _eventStreamController.addError('[PayMethodChannel] Error receiving event: $error');
-    });
+    // The `pay_events` EventChannel is only implemented on the Android side of
+    // the plugin (pay_android). iOS registers no handler for it, so subscribing
+    // on iOS throws MissingPluginException on every PayMethodChannel creation
+    // (CRDES-45750). Only Android delivers the payment result over this stream;
+    // iOS reads it directly from showPaymentSelector, so skipping the
+    // subscription there is a no-op behaviourally.
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Listen to the event channel and add events to the stream controller
+      _eventChannel.receiveBroadcastStream().listen((dynamic event) {
+        final Map<String, dynamic> eventData = jsonDecode(event as String) as Map<String, dynamic>;
+        _eventStreamController.add(eventData);
+      }, onError: (dynamic error) {
+        // Flush error to the event stream controller
+        _eventStreamController.addError('[PayMethodChannel] Error receiving event: $error');
+      });
+    }
   }
 
   /// Provides a stream of payment events.
